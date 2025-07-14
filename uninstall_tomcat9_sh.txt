@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# Exit on error
+set -e
+
+# ===== Variables =====
+TOMCAT_DIR="/opt/tomcat"
+TOMCAT_USER="tomcat"
+SYSTEMD_SERVICE="/etc/systemd/system/tomcat.service"
+JAVA_PACKAGE="java-11-openjdk-devel"
+JAVA_DIR="/usr/lib/jvm/java-11-openjdk"
+
+# ===== Step 1: Stop Tomcat service =====
+echo "Stopping Tomcat service..."
+sudo systemctl stop tomcat || true
+sudo systemctl disable tomcat || true
+
+# ===== Step 2: Remove systemd service =====
+if [ -f "$SYSTEMD_SERVICE" ]; then
+  echo "Removing systemd service..."
+  sudo rm -f $SYSTEMD_SERVICE
+  sudo systemctl daemon-reload
+fi
+
+# ===== Step 3: Delete Tomcat files and user =====
+echo "Removing Tomcat installation from $TOMCAT_DIR..."
+sudo rm -rf $TOMCAT_DIR
+
+echo "Deleting Tomcat user..."
+sudo userdel -r $TOMCAT_USER || true
+
+# ===== Step 4: Remove Java 11 =====
+echo "Removing Java 11..."
+sudo dnf remove -y $JAVA_PACKAGE || true
+
+# Optional: Remove JAVA_HOME directory manually if still present
+if [ -d "$JAVA_DIR" ]; then
+  echo "Cleaning up leftover Java 11 directory..."
+  sudo rm -rf "$JAVA_DIR"
+fi
+
+echo "✅ Tomcat 9 and Java 11 have been uninstalled."

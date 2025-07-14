@@ -1,0 +1,1 @@
+scp -i ~/Downloads/aws_deploy.pem  target/springboot-web-demo-0.0.1-SNAPSHOT.war ec2-user@13.222.37.244:/home/ec2-user

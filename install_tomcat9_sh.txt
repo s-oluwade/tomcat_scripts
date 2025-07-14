@@ -1,0 +1,80 @@
+#!/bin/bash
+
+# Exit on error
+set -e
+
+# ===== Variables =====
+TOMCAT_VERSION=9.0.107
+JAVA_PACKAGE="java-11-openjdk-devel"
+TOMCAT_USER="tomcat"
+TOMCAT_DIR="/opt/tomcat"
+TOMCAT_TAR="apache-tomcat-${TOMCAT_VERSION}.tar.gz"
+TOMCAT_URL="https://downloads.apache.org/tomcat/tomcat-9/v${TOMCAT_VERSION}/bin/${TOMCAT_TAR}"
+SYSTEMD_SERVICE="/etc/systemd/system/tomcat.service"
+
+# ===== Step 1: Install Java =====
+echo "Installing Java..."
+sudo dnf install -y $JAVA_PACKAGE
+
+# ===== Step 2: Create tomcat user =====
+echo "Creating Tomcat user..."
+sudo useradd -m -U -d $TOMCAT_DIR -s /bin/false $TOMCAT_USER || true
+
+# ===== Step 3: Download Tomcat =====
+echo "Downloading Tomcat..."
+cd /tmp
+curl -O $TOMCAT_URL
+
+# ===== Step 4: Extract to /opt/tomcat =====
+echo "Installing Tomcat to $TOMCAT_DIR..."
+sudo mkdir -p $TOMCAT_DIR
+sudo tar -xzvf $TOMCAT_TAR -C $TOMCAT_DIR --strip-components=1
+
+# ===== Step 5: Set permissions =====
+echo "Setting permissions..."
+sudo chown -R $TOMCAT_USER:$TOMCAT_USER $TOMCAT_DIR
+sudo find "$TOMCAT_DIR/bin" -type f -name "*.sh" -exec chmod +x {} \;
+# sudo chmod +x $TOMCAT_DIR/bin/*.sh
+
+# ===== Step 6: Create systemd service =====
+echo "Creating systemd service..."
+sudo bash -c "cat > $SYSTEMD_SERVICE" <<EOF
+[Unit]
+Description=Apache Tomcat Web Application Container
+After=network.target
+
+[Service]
+Type=forking
+
+User=$TOMCAT_USER
+Group=$TOMCAT_USER
+
+Environment="JAVA_HOME=/usr/lib/jvm/java-11-openjdk"
+Environment="CATALINA_PID=$TOMCAT_DIR/temp/tomcat.pid"
+Environment="CATALINA_HOME=$TOMCAT_DIR"
+Environment="CATALINA_BASE=$TOMCAT_DIR"
+Environment="CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC"
+
+ExecStart=$TOMCAT_DIR/bin/startup.sh
+ExecStop=$TOMCAT_DIR/bin/shutdown.sh
+
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# ===== Step 7: Start and enable service =====
+echo "Starting Tomcat..."
+sudo systemctl daemon-reexec
+sudo systemctl daemon-reload
+sudo systemctl start tomcat
+sudo systemctl enable tomcat
+
+# ===== Step 8: Open firewall port =====
+echo "Opening port 8080..."
+# sudo firewall-cmd --permanent --add-port=8080/tcp
+# sudo firewall-cmd --reload
+
+echo "✅ Tomcat $TOMCAT_VERSION installed successfully!"
+echo "🌐 Visit http://<your-server-ip>:8080 in your browser."
